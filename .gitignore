@@ -127,6 +127,7 @@ dmypy.json
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
+*/.ipynb_checkpoints/*
 
 # VS Code
 .vscode/
