@@ -68,3 +68,8 @@ Overview of physiological measurements, to gauge their utility as-is for the mod
         - Normal 70 - 100 mmHg
 - Arterial pH
     - normal 7,35
+
+# Hindsight 20:20 - what would I do differently if I started all over again
+- Downloading the whole dataset was a waste of time and space. Next time, I would download just the set-a and outcome files
+
+# What would I have done differently if I had more time?

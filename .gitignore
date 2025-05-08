@@ -135,7 +135,13 @@ dmypy.json
 # Local Jupyter Notebook configuration
 .jupyter/
 
+# ML dumps
+*.joblib
+*.pkl
+*.pickle
+
 # Data files
+*.pdf
 *.csv
 *.tsv
 *.dat
