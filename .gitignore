@@ -149,3 +149,4 @@ dmypy.json
 *.json
 *.xlsx
 *.xls
+*.m
