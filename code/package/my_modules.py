@@ -6,6 +6,24 @@ import seaborn as sns
 from tabulate import tabulate
 import os
 
+# data science libraries
+import joblib
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import fbeta_score, make_scorer
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, StratifiedKFold 
+from sklearn.impute import KNNImputer
+from sklearn.linear_model import LogisticRegression
+# from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import precision_recall_curve, auc
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.metrics import classification_report
+from sklearn.model_selection import cross_val_score
+from xgboost import XGBClassifier
+from sklearn.calibration import calibration_curve
+
 # Dataframe reading/writing
 
 def load_data(file_path: str) -> pd.DataFrame:
@@ -265,7 +283,170 @@ def eda_on_df(df_in: pd.DataFrame) -> None:
     sns.heatmap(df_in.corr(), annot=True, cmap='coolwarm', fmt='.2f')
     plt.title("Correlation heatmap of features")
     plt.show()
+
+def print_highly_correlated(df, threshold=0.7) -> None:
+    """Prints pairs of highly correlated columns in a DataFrame.
+
+    Args:
+        df (pd.DataFrame): The DataFrame.
+        threshold (float): The correlation threshold (absolute value). Default = 0.7
+    """
+    corr_matrix = df.corr()
+    for i in range(len(corr_matrix.columns)):
+        for j in range(i):
+            if abs(corr_matrix.iloc[i, j]) >= threshold:
+                print(f"{corr_matrix.columns[i]} and {corr_matrix.columns[j]}: {corr_matrix.iloc[i, j]:.2f}")
     
+# ML modeling
+
+def get_stratified_kfold(X, y, n_splits=5):
+    """
+    Create a Stratified K-Folds cross-validator.
+    
+    Parameters:
+    X (pd.DataFrame): Features DataFrame.
+    y (pd.Series): Target variable Series.
+    n_splits (int): Number of splits for K-Folds.
+    
+    Returns:
+    StratifiedKFold: Stratified K-Folds cross-validator object.
+    """
+    
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=rng)
+    
+    return skf.split(X, y)
+
+def get_feature_importances(model, X, y):
+    """
+    Get feature importances from a fitted model.
+    
+    Parameters:
+    model: Fitted model object.
+    X (pd.DataFrame): Features DataFrame.
+    y (pd.Series): Target variable Series.
+    
+    Returns:
+    pd.DataFrame: DataFrame of feature importances.
+    """
+    
+    # Fit the model
+    model.fit(X, y)
+    
+    # Get feature importances
+    importances = model.feature_importances_
+    
+    # Create a DataFrame of feature importances
+    feature_importances = pd.DataFrame(importances, index=X.columns, columns=["Importance"]).sort_values(by="Importance", ascending=False)
+    
+    return feature_importances
+
+def plot_feature_importances(feature_importances, n=10):
+    """
+    Plot the top n feature importances.
+    
+    Parameters:
+    feature_importances (pd.DataFrame): DataFrame of feature importances.
+    n (int): Number of top features to plot.
+    
+    Returns:
+    None
+    """
+    
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x=feature_importances["Importance"][:n], y=feature_importances.index[:n])
+    plt.title("Top Feature Importances")
+    plt.xlabel("Importance")
+    plt.ylabel("Features")
+    plt.show()
+
+def save_model(model, filename):
+    """
+    Save the model to a file.
+    
+    Parameters:
+    model: Model object to save.
+    filename (str): Filename to save the model.
+    
+    Returns:
+    None
+    """
+    
+    joblib.dump(model, filename)
+    print(f"Model saved to {filename}")
+
+def load_model(filename):
+    """
+    Load the model from a file.
+    
+    Parameters:
+    filename (str): Filename to load the model from.
+    
+    Returns:
+    Model object: Loaded model.
+    """
+    
+    model = joblib.load(filename)
+    print(f"Model loaded from {filename}")
+    
+    return model
+
+def evaluate_model(model, X_test, y_test):
+    """
+    Evaluate the model on the test set.
+    
+    Parameters:
+    model: Fitted model object.
+    X_test (pd.DataFrame): Testing features DataFrame.
+    y_test (pd.Series): Testing target variable Series.
+    
+    Returns:
+    None
+    """
+    
+    # Get predictions
+    y_pred = model.predict(X_test)
+    
+    # # Calculate accuracy
+    # accuracy = np.mean(y_pred == y_test)
+    
+    # print(f"Model Accuracy: {accuracy:.2%}")
+    # calculate PR AUC
+    print("Calculating PR AUC...")
+    precision, recall, _ = precision_recall_curve(y_test, y_pred)
+    pr_auc = auc(recall, precision)
+    print(f"Model PR AUC: {pr_auc:.2f}")
+    # plot PR curve
+    plt.figure(figsize=(10, 6))
+    plt.plot(recall, precision, marker='.')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Precision-Recall Curve')
+    plt.show()
+
+    # create a confusion matrix
+    print
+    cm = confusion_matrix(y_test, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=model.classes_)
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title('Confusion Matrix')
+    plt.show()
+    # print classification report
+    
+    print("Classification Report:")
+    # print(classification_report(y_test, y_pred, target_names=model.classes_))
+    print(classification_report(y_test, y_pred, target_names=[str(c) for c in model.classes_]))
+
+    # calibration curve
+    from sklearn.calibration import calibration_curve
+    prob_true, prob_pred = calibration_curve(y_test, model.predict_proba(X_test)[:, 1], n_bins=10)
+    plt.figure(figsize=(10, 6))
+    plt.plot(prob_pred, prob_true, marker='o', label='Model')
+    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfectly Calibrated')
+    plt.xlabel('Mean Predicted Probability')
+    plt.ylabel('Fraction of Positives')
+    plt.title('Calibration Curve')
+    plt.legend()
+    plt.show()
 
 # Physionet 2012 challenge Dataset specific modules
 
