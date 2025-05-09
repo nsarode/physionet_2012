@@ -150,3 +150,12 @@ dmypy.json
 *.xlsx
 *.xls
 *.m
+*.c
+*.R
+*.html
+*.png
+*.mat
+*.zip
+*.sh
+papers/*
+sources/*
