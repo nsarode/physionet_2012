@@ -23,6 +23,7 @@ from sklearn.metrics import classification_report
 from sklearn.model_selection import cross_val_score
 from xgboost import XGBClassifier
 from sklearn.calibration import calibration_curve
+from sklearn.preprocessing import OneHotEncoder
 
 # Dataframe reading/writing
 
@@ -152,7 +153,7 @@ def get_X_y(df):
     
     return X, y
 
-def get_train_test_holdout(X, y, test_size=0.2, holdout_size=0.2):
+def get_train_test_holdout(X, y, test_size=0.2, holdout_size=0.2, random_state=42):
     """
     Split the data into train, test, and holdout sets.
     
@@ -173,10 +174,10 @@ def get_train_test_holdout(X, y, test_size=0.2, holdout_size=0.2):
 
 
     # Split into train+test and holdout
-    X_train_test, X_holdout, y_train_test, y_holdout = train_test_split(X, y, test_size=holdout_size, stratify=y)
+    X_train_test, X_holdout, y_train_test, y_holdout = train_test_split(X, y, test_size=holdout_size, stratify=y, random_state=random_state)
     
     # Split into train and test
-    X_train, X_test, y_train, y_test = train_test_split(X_train_test, y_train_test, test_size=test_size/(1-holdout_size), stratify=y_train_test)
+    X_train, X_test, y_train, y_test = train_test_split(X_train_test, y_train_test, test_size=test_size/(1-holdout_size), stratify=y_train_test,random_state=random_state)
 
     # Print the shapes of the splits
     print("\nTrain, Test, Holdout Split Shapes:")
@@ -214,9 +215,12 @@ def plot_missing_values(df) -> None:
     plt.figure(figsize=(10, 6))
     sns.barplot(y=missing_values.index, x=missing_values.values)
     plt.title("Percentage of Missing Values")
-    plt.xlabel("Columns")
-    plt.ylabel("Percentage of Missing Values")
+    plt.ylabel("Columns")
+    plt.xlabel("Percentage of Missing Values")
     plt.xticks(rotation=90)
+    plt.axvline(x=80, color='r', linestyle='--')
+    plt.axvline(x=50, color='g', linestyle='--')
+    
     plt.show()
 
     # plot count of missing values as heatmap
@@ -247,8 +251,8 @@ def plot_feature_nonnull_count(df) -> None:
     plt.figure(figsize=(10, 6))
     sns.barplot(y=nonnull_counts.index, x=nonnull_counts.values)
     plt.title("Count of Non-Null Values")
-    plt.xlabel("Columns")
-    plt.ylabel("Count of Non-Null Values")
+    plt.ylabel("Columns")
+    plt.xlabel("Count of Non-Null Values")
     plt.xticks(rotation=90)
     plt.show()
 
@@ -299,7 +303,7 @@ def print_highly_correlated(df, threshold=0.7) -> None:
     
 # ML modeling
 
-def get_stratified_kfold(X, y, n_splits=5):
+def get_stratified_kfold(X, y, n_splits=5, random_state=42):
     """
     Create a Stratified K-Folds cross-validator.
     
@@ -312,7 +316,7 @@ def get_stratified_kfold(X, y, n_splits=5):
     StratifiedKFold: Stratified K-Folds cross-validator object.
     """
     
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=rng)
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     
     return skf.split(X, y)
 
@@ -498,8 +502,9 @@ def clean_data(df_in) -> pd.DataFrame:
     df['Gender'] = df['mean_Gender']
     df['Height'] = df['mean_Height']
     df['Weight'] = df['mean_Weight']
+    df['ICUType'] = df['mean_ICUType']
     # drop columns with suffix '_Age', '_Gender', '_Height', '_Weight'
-    suffix_pattern = r'(_Age|_Gender|_Height|_Weight)'
+    suffix_pattern = r'(_Age|_Gender|_Height|_Weight|_ICUType)'
     cols_to_drop_general = df.filter(regex=suffix_pattern).columns
     df.drop(columns=cols_to_drop_general, inplace=True)
     
@@ -512,6 +517,18 @@ def clean_data(df_in) -> pd.DataFrame:
     # drop the mechvent_cols
     df.drop(columns=mechvent_cols, inplace=True)
 
+    # one-hot encode ICUType column
+    df_encoded = pd.get_dummies(df, columns=['ICUType']) # , drop_first=True
+    # df = pd.concat([df, icutype_encoded], axis=1)
+    # df.drop(columns=['ICUType'], inplace=True)
+    
+    # encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    # icutype_encoded = encoder.fit_transform(df[['ICUType']])
+    # icutype_encoded_df = pd.DataFrame(icutype_encoded, columns=encoder.get_feature_names_out(['ICUType']))
+    # df = pd.concat([df, icutype_encoded_df], axis=1)
+    # df.drop(columns=['ICUType'], inplace=True)
+
+
     # won't drop any columns yet. Will revisit this later
     
     # # Remove columns with more than 50% missing values
@@ -523,4 +540,34 @@ def clean_data(df_in) -> pd.DataFrame:
     # df_imputed_array = imputer.fit_transform(df)
     # df = pd.DataFrame(df_imputed_array, columns=df.columns)
 
-    return df.copy() # Return a copy of the modified DataFrame
+    return df_encoded.copy() # Return a copy of the modified DataFrame
+
+def feature_eng(df_in) -> pd.DataFrame:
+    """
+    Feature engineering round I
+    - Drop NISysABP and NIDiasABP and retain just NIMAP
+    - Convert to AST/ALT and PaCO2/HC03 (after replacing NaN with 1 to avoid division by NaN issue)
+    - Replace NaN in TroponinI, Cholesterol & TroponinT to 0
+    """
+    
+    # round I
+    selected_columns_drop = ['median_NISysABP', 'median_NIDiasABP']
+    selected_columns = ['median_TroponinI','median_Cholesterol','median_TroponinT']
+    selected_columns_ratio = ['median_AST', 'median_ALT', 'median_PaCO2', 'median_HCO3']
+    
+    # drop selected columns
+    df = df_in.drop(columns=selected_columns_drop)
+
+    # Fill NaN with 0
+    df[selected_columns] = df[selected_columns].fillna(0)
+
+    # Fill NaN values with 1 in the selected columns
+    df[selected_columns_ratio] = df[selected_columns_ratio].fillna(1)
+    # get ratio & drop original columns
+    df['AST/ALT'] = df['median_AST']/df['median_ALT']
+    df['PaCO2/HC03'] = df['median_PaCO2']/df['median_HCO3']
+    df = df.drop(columns=selected_columns_ratio)
+    
+
+
+    return df.copy()
