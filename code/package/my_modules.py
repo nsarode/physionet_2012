@@ -194,6 +194,40 @@ def get_train_test_holdout(X, y, test_size=0.2, holdout_size=0.2, random_state=4
     
     return X_train, X_test, X_holdout, y_train, y_test, y_holdout
 
+def get_train_test(X, y, test_size=0.2, random_state=42):
+    """
+    Split the data into train, test, and holdout sets.
+    
+    Parameters:
+    X (pd.DataFrame): Features DataFrame.
+    y (pd.Series): Target variable Series.
+    test_size (float): Proportion of the data to include in the test set.
+    
+    
+    Returns:
+    X_train (pd.DataFrame): Training features DataFrame.
+    X_test (pd.DataFrame): Testing features DataFrame.
+    y_train (pd.Series): Training target variable Series.
+    y_test (pd.Series): Testing target variable Series.
+    """
+
+
+    # Split into train+test and holdout
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, stratify=y, random_state=random_state)
+    
+    # Print the shapes of the splits
+    print("\nTrain, Test, Holdout Split Shapes:")
+    print(f"X_train: {X_train.shape}, y_train: {y_train.shape}")
+    print(f"X_test: {X_test.shape}, y_test: {y_test.shape}")
+    # Print the distribution of the target variable in each split
+    print("\nTarget Variable Distribution:")
+    print(f"y_train:\n{y_train.value_counts(normalize=True)}")
+    print(f"y_test:\n{y_test.value_counts(normalize=True)}")
+    # Print the distribution of the target variable in the entire dataset
+    print(f"\nFull Dataset:\n{y.value_counts(normalize=True)}")
+    
+    return X_train, X_test, y_train, y_test
+
 # EDA plotting
 def plot_missing_values(df) -> None:
     """
@@ -409,6 +443,8 @@ def evaluate_model(model, X_test, y_test):
     
     # Get predictions
     y_pred = model.predict(X_test)
+    y_pred_proba = model.predict_proba(X_test)[:, 1]
+    
     
     # # Calculate accuracy
     # accuracy = np.mean(y_pred == y_test)
@@ -416,7 +452,7 @@ def evaluate_model(model, X_test, y_test):
     # print(f"Model Accuracy: {accuracy:.2%}")
     # calculate PR AUC
     print("Calculating PR AUC...")
-    precision, recall, _ = precision_recall_curve(y_test, y_pred)
+    precision, recall, _ = precision_recall_curve(y_test, y_pred_proba)
     pr_auc = auc(recall, precision)
     print(f"Model PR AUC: {pr_auc:.2f}")
     # plot PR curve
@@ -518,15 +554,7 @@ def clean_data(df_in) -> pd.DataFrame:
     df.drop(columns=mechvent_cols, inplace=True)
 
     # one-hot encode ICUType column
-    df_encoded = pd.get_dummies(df, columns=['ICUType']) # , drop_first=True
-    # df = pd.concat([df, icutype_encoded], axis=1)
-    # df.drop(columns=['ICUType'], inplace=True)
-    
-    # encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
-    # icutype_encoded = encoder.fit_transform(df[['ICUType']])
-    # icutype_encoded_df = pd.DataFrame(icutype_encoded, columns=encoder.get_feature_names_out(['ICUType']))
-    # df = pd.concat([df, icutype_encoded_df], axis=1)
-    # df.drop(columns=['ICUType'], inplace=True)
+    df_encoded = pd.get_dummies(df, columns=['ICUType'], dtype=float) # , drop_first=True
 
 
     # won't drop any columns yet. Will revisit this later
