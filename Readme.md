@@ -71,5 +71,7 @@ Overview of physiological measurements, to gauge their utility as-is for the mod
 
 # Hindsight 20:20 - what would I do differently if I started all over again
 - Downloading the whole dataset was a waste of time and space. Next time, I would download just the set-a and outcome files
+- shap doesn't support imblearn generated models and shortcircuits with its visuals. imblearn did perform better or pretty much equal to XGBoost with minimal parameter optimization (XGBoost definitely needed it due to imbalanced nature of the dataset). I could have tried LIME or ACV, if imblearn was the only best performing model
+- Model stacking approach to optimize performance of the models
 
 # What would I have done differently if I had more time?
